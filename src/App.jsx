@@ -50,25 +50,32 @@ export default function App() {
 
   const refreshEnvironment = useCallback(async () => {
     setEnvState((prev) => ({ ...prev, loading: true, error: '' }));
-    try {
-      const [weather, airQuality] = await Promise.all([
-        fetchWeather(settings.latitude, settings.longitude),
-        fetchAirQuality(settings.latitude, settings.longitude),
-      ]);
-      setEnvState({
-        weather,
-        airQuality,
-        loading: false,
-        error: '',
-        lastUpdated: new Date().toISOString(),
-      });
-    } catch (err) {
-      setEnvState((prev) => ({
-        ...prev,
-        loading: false,
-        error: err?.message || 'Failed to fetch environment data.',
-      }));
+    const [weatherRes, aqiRes] = await Promise.allSettled([
+      fetchWeather(settings.latitude, settings.longitude),
+      fetchAirQuality(settings.latitude, settings.longitude),
+    ]);
+
+    const errors = [];
+    const weather =
+      weatherRes.status === 'fulfilled' ? weatherRes.value : null;
+    const airQuality =
+      aqiRes.status === 'fulfilled' ? aqiRes.value : null;
+
+    if (weatherRes.status === 'rejected') {
+      errors.push(weatherRes.reason?.message || 'Weather fetch failed.');
     }
+    if (aqiRes.status === 'rejected') {
+      errors.push(aqiRes.reason?.message || 'Air quality fetch failed.');
+    }
+
+    setEnvState((prev) => ({
+      weather: weather ?? prev.weather,
+      airQuality: airQuality ?? prev.airQuality,
+      loading: false,
+      error: errors.join(' '),
+      lastUpdated:
+        weather || airQuality ? new Date().toISOString() : prev.lastUpdated,
+    }));
   }, [settings.latitude, settings.longitude]);
 
   useEffect(() => {

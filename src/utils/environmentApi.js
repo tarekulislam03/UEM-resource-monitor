@@ -1,3 +1,13 @@
+async function fetchWithTimeout(url, timeoutMs = 10000) {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { signal: controller.signal });
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 export async function fetchWeather(lat, lng) {
   const url = `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(
     lat
@@ -6,7 +16,7 @@ export async function fetchWeather(lat, lng) {
   )}&current=temperature_2m,relative_humidity_2m,apparent_temperature,wind_speed_10m,precipitation&timezone=auto`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) {
       throw new Error(`Weather request failed (${res.status})`);
     }
@@ -16,6 +26,9 @@ export async function fetchWeather(lat, lng) {
     }
     return data.current;
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Weather API timed out.');
+    }
     throw new Error(err?.message || 'Unable to fetch weather data.');
   }
 }
@@ -28,7 +41,7 @@ export async function fetchAirQuality(lat, lng) {
   )}&current=us_aqi,pm2_5,pm10&timezone=auto`;
 
   try {
-    const res = await fetch(url);
+    const res = await fetchWithTimeout(url);
     if (!res.ok) {
       throw new Error(`Air quality request failed (${res.status})`);
     }
@@ -38,6 +51,9 @@ export async function fetchAirQuality(lat, lng) {
     }
     return data.current;
   } catch (err) {
+    if (err?.name === 'AbortError') {
+      throw new Error('Air quality API timed out.');
+    }
     throw new Error(err?.message || 'Unable to fetch air quality data.');
   }
 }
